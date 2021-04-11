@@ -8,4 +8,6 @@ The `training_data.csv` and `testing_data.csv` are provided. Aside from the give
 ## Model
 According to the instructions, the aim is to maximize the resulting accumulated profit via deciding the **Buy**, **NoAction**, and **Sell** actions based on the current **open-high-low-close** prices. Thus I turned to reinforcement learning (RL), which learns a policy through the resulting rewards. The deep q network (DQN) is a RL technique with Bellman equation as the update function and is suitable for continuous state space. Gated recurrent unit (GRU) is used in the DQN for modeling the q-values.
 
-The accumulated profit over each episode is drawn below:
+The accumulated profit over each episode are drawn below:
+
+I believe it could be more precise to take the prediction of future stock prices into account of state.
