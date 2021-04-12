@@ -83,7 +83,7 @@ class StockMarket():
         # inventory = np.array([30, None])
         
         # Prediction
-        x = self.data[self.curr_index+1: self.curr_index-self.past_step+1: -1]
+        x = self.data[self.curr_index: self.curr_index-self.past_step: -1]
         x = x.reshape((1, x.size, 1))
         prediction = self.predict_model.predict(x)[0]
         prediction /= open_price
