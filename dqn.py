@@ -10,11 +10,15 @@ import random
 
 from collections import deque
 from numpy.ma import masked_array
+import matplotlib.pyplot as plt
 
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, GRU
 from keras.optimizers import Adam
 
+from nn import NN
+
+# self=self.agent
 # self=DQN(env)
 class DQN():
     def __init__(self, env):      
@@ -31,28 +35,10 @@ class DQN():
         self.target_model = self.create_model()
 
     def create_model(self):
-        layers = 4 # 8 # 
-        units = int(round(self.env.state_size/2)) # 3 # 4 # 
-        dropout = 0.05
-
-        loss = 'mse'
-        optimizer = 'adam'
-
-        model = Sequential()
-        for i, u in zip(range(layers), np.linspace(units, 1, layers)):
-            if i<layers-1:
-                return_sequences = True
-            else:
-                return_sequences = False
+        model = NN(input_shape=(self.env.state_size, 1), 
+                   output_size=len(self.env.action_space), 
+                   layers=6, units=int(round(self.env.state_size/2))).model
                 
-            model.add(GRU(units=int(np.round(max(1, u))), input_shape=(self.env.state_size, 1), 
-                             return_sequences=return_sequences))
-            model.add(Dropout(dropout))
-        
-        model.add(Dense(len(self.env.action_space))) # model.add(TimeDistributed(Dense(1)))
-        model.compile(loss=loss, optimizer=optimizer)
-        # model.summary()
-        
         return model
 
     def act(self, state, epsilon=None):
@@ -81,14 +67,17 @@ class DQN():
 
     def replay(self):
         batch_size = 64
-        epochs = 5
+        epochs = 100
 
         if len(self.memory) < batch_size: 
             return
 
+        states = np.empty((0, self.env.state_size, 1))
+        targets = np.empty((0, len(self.env.action_space)))
         samples = random.sample(self.memory, batch_size)
         for sample in samples:
             state, action, reward, next_state, done = sample
+            
             target = self.target_model.predict(state)
             if done:
                 target[0][self.env.action_space.index(action)] = reward
@@ -97,7 +86,13 @@ class DQN():
                 Q_future = masked_array(self.target_model.predict(next_state)[0], mask).max()
                 target[0][self.env.action_space.index(action)] \
                     = reward + Q_future * self.gamma
-            self.model.fit(state, target, epochs=epochs, verbose=0)
+                    
+            states = np.vstack((states, state))
+            targets = np.vstack((targets, target))
+        
+        fit_history = self.model.fit(states, targets, epochs=epochs, verbose=0)
+        # plt.plot(fit_history.history['loss'])
+        # plt.show()
                         
     def target_train(self):
         weights = self.model.get_weights()
@@ -106,8 +101,9 @@ class DQN():
             target_weights[i] = weights[i] * self.tau + target_weights[i] * (1 - self.tau)
         self.target_model.set_weights(target_weights)
 
-    def save_model(self, fn):
-        self.model.save(fn)
+    def save_model(self):
+        self.model.save('model.h5')
+        self.target_model.save('target_model.h5')
         
         
         

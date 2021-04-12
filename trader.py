@@ -9,7 +9,7 @@ from utils import *
 from stock_market import StockMarket
 from dqn import DQN
 
-# self=trader
+# self=Trader()
 class Trader():
     def __init__(self):
         self.verbose = True
@@ -27,7 +27,8 @@ class Trader():
         print('\tstart time:', starttime)
         print()
 
-        env = StockMarket(training_data) # data is only an information of prices in the environment
+        env = StockMarket(training_data.values) # data is only an information of prices in the environment
+        env.create_predict_model()
         self.agent = DQN(env)
         self.train_history = []
         for episode in range(episodes):
@@ -38,9 +39,6 @@ class Trader():
             curr_state = env.reset()
             # epsilon *= epsilon_decay
             e = max(epsilon_min, epsilon*(1-episode/episodes))
-            # if np.random.random()<epsilon:
-            #     action = random.sample(list(filter(lambda x: x==x, available_action_space)), 1)[0]
-            #     print(action)
             while True:
                 action = self.agent.act(curr_state, e)
                 reward, next_state, done = env.step(action)
@@ -75,8 +73,10 @@ class Trader():
                 print('='*50)
                 print()
         
-        # Save model
-        self.agent.save_model('model.h5')
+            # Save model in every episode
+            self.agent.save_model()
+        
+        self.env = env
         
         endtime = datetime.now()
         print()
@@ -87,18 +87,15 @@ class Trader():
         print()
                 
     def predict_action(self, row):
-        try:
-            _, curr_state, _ = self.predict_env.step(self.prev_action, row)
+        try: # Whether trained
+            try: # Whether the first prediction
+                _, curr_state, _ = self.env.step(self.prev_action, row)
+            except:
+                curr_state = self.env.reset(row)
         except:
-            self.predict_env = StockMarket()
-            curr_state = self.predict_env.reset(row)
-
-        try:
-            if self.agent==self.agent:
-                pass
-        except:
-            env = StockMarket() # data is only an information of prices in the environment
-            self.agent = DQN(env)
+            self.env = StockMarket() # data is only an information of prices in the environment
+            self.env.predict_model = load_model('predict_model.h5')
+            self.agent = DQN(self.env)
             self.agent.model = load_model('model.h5')
 
         action = self.agent.act(curr_state)

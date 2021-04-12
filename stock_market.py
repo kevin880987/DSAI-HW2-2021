@@ -7,31 +7,69 @@ Created on Sat Apr 10 00:44:05 2021
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+
+from keras.models import load_model
 
 from stock_trader import StockTrader
-from utils import Action
+from utils import Action, shift
+from nn import NN
 
 # data=training_data
 # data=testing_data
-# self=StockMarket(data)
+# self=StockMarket(training_data)
 # self=env
 class StockMarket():
-    def __init__(self, data=None):
-        if data is not None:
-            self.data = data.reindex()
+    def __init__(self, data):
+        # data is a 2d array
         
-        self.state_size = 6
+        self.data = data
+        
+        self.state_size = 8
         self.action_space = [1, 0, -1]
 
-        self.trial_length = 20
-        self.open_index = 0
+        self.trial_length:int = 20
+        self.open_index:int = 0 # numerical index
         
-    def build_state(self, prices):
+    def create_predict_model(self):
+        past_step = 5
+        future_step = 2
+        epochs = 600 # 50 # 
         
+        X = np.empty((self.data.shape[0], 0))
+        for n in range(past_step):
+            X = np.hstack((X, shift(self.data, n)))
+        Y = np.empty((self.data.shape[0], 0))
+        for n in range(1, future_step+1):
+            Y = np.hstack((Y, shift(self.data[:, [self.open_index]], -n)))
+        mask = ~np.isnan(X).any(axis=1) & ~np.isnan(Y).any(axis=1)
+        X = X[mask]
+        Y = Y[mask]
+        
+        predict_model = NN(input_shape=(X.shape[1], 1), 
+                           output_size=Y.shape[1], 
+                           layers=6, units=max(2, int(round(X.shape[1]/2))))
+
+        predict_model.train(X, Y, epochs=epochs) # , model=load_model('predict_model.h5')) # 
+
+        self.past_step = past_step
+        self.predict_model = predict_model
+        predict_model.save_model('predict_model.h5')
+
+    def build_state(self):
+        # prices is a 1d array
+        
+        prices = self.data[self.curr_index]
         open_price = prices[self.open_index]
 
         # Quote change
-        prices /= open_price
+        volatility = prices / open_price
+        
+        inventory_price = [self.stock_trader.holding_price, 
+                           self.stock_trader.short_selling_price]
+        inventory_price = list(filter(lambda x: x is not None, inventory_price))
+        if len(inventory_price)==1:
+            volatility[self.open_index] = inventory_price[0] - open_price
         
         # Inventory
         inventory = [self.stock_trader.is_holding_stock, 
@@ -40,19 +78,21 @@ class StockMarket():
         self.is_holding_stock_index = 4
         self.is_shorting_stock_index = 5
 
-        inventory_price = [self.stock_trader.holding_price, 
-                           self.stock_trader.short_selling_price]
-        inventory_price = list(filter(lambda x: x is not None, inventory_price))
-        if len(inventory_price)==1:
-            prices[self.open_index] = inventory_price[0] / open_price
-        
         # inventory = np.array([x-open_price if x is not None else 0 for x in inventory])
         # inventory -= open_price
         # inventory = np.array([30, None])
         
+        # Prediction
+        x = self.data[self.curr_index+1: self.curr_index-self.past_step+1: -1]
+        x = x.reshape((1, x.size))
+        prediction = self.predict_model.predict(x)[0]
+        prediction /= open_price
+
         # Build state
-        state = np.concatenate((prices, inventory))
-        state = state.reshape(1, self.state_size, 1)
+        state = np.concatenate((volatility, inventory, prediction))
+        if state.size != self.state_size:
+            raise ValueError('Incompatible state size.')
+        state = state.reshape(1, state.size, 1)
         
         return state
         
@@ -63,23 +103,27 @@ class StockMarket():
         self.stock_trader = StockTrader()
         self.trial_history = []
 
-        if curr_prices is None:
-            curr_prices = self.data.iloc[: -self.trial_length+1].sample()
-            self.curr_index = curr_prices.index[0]
-            curr_prices = curr_prices.values.flatten()
-
-        curr_state = self.build_state(curr_prices)
+        if curr_prices is None: # randomly select a start point from self.data
+            self.curr_index = int(round(np.random.rand() * (self.data.shape[0]-self.trial_length)))
+            
+        else: # add the passed curr_prices to the self.data and reset
+            self.data = np.vstack((self.data, curr_prices))
+            self.curr_index = self.data.shape[0] - 1
+            
+        curr_state = self.build_state()
         return curr_state
         
     def step(self, action, next_prices=None):
         self.step_ctr += 1
-        if next_prices is None:
-            next_index = self.curr_index+1
-            self.curr_index = next_index
-            next_prices = self.data.loc[[next_index]].values.flatten()
         
-        reward = self.stock_trader.perform_action(action, next_prices[self.open_index])
-        next_state = self.build_state(next_prices)
+        self.curr_index += 1
+        if next_prices is None: # continue 
+            pass
+        else:
+            self.data = np.vstack((self.data, next_prices))
+                    
+        reward = self.stock_trader.perform_action(action, self.data[self.curr_index, self.open_index])
+        next_state = self.build_state()
         
         self.trial_history.append([self.stock_trader.accumulated_profit, reward])
         
