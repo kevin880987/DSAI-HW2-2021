@@ -24,24 +24,27 @@ class DQN():
     def __init__(self, env):      
         self.env = env
         
-        self.gamma = 0.80
+        self.gamma = 0.95
         # self.learning_rate = 0.005
         self.tau = .125
         self.verbose = True
     
         self.memory = deque(maxlen=1000)
         
+        self.state_size = env.state_size
+
         self.model = self.create_model()
         self.target_model = self.create_model()
-
+                
     def create_model(self):
-        model = NN(input_shape=(self.env.state_size, 1), 
+        model = NN(input_shape=(self.state_size, 1), 
                    output_size=len(self.env.action_space), 
-                   layers=6, units=int(round(self.env.state_size/2))).model
+                   layers=6, units=int(round(self.state_size/2))).model
                 
         return model
 
     def act(self, state, epsilon=None):
+        state = state.reshape(state.shape[0], state.shape[1], 1)
         mask = self.env.get_available_actions(state)
         available_action_space = masked_array(self.env.action_space, mask)
 
@@ -66,13 +69,13 @@ class DQN():
         self.memory.append([state, action, reward, next_state, done])
 
     def replay(self):
-        batch_size = 64
-        epochs = 100
+        batch_size = 32
+        epochs = 50
 
         if len(self.memory) < batch_size: 
             return
 
-        states = np.empty((0, self.env.state_size, 1))
+        states = np.empty((0, self.state_size, 1))
         targets = np.empty((0, len(self.env.action_space)))
         samples = random.sample(self.memory, batch_size)
         for sample in samples:

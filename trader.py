@@ -9,13 +9,14 @@ from utils import *
 from stock_market import StockMarket
 from dqn import DQN
 
-# self=Trader()
+# self=Trader(training_data)
 class Trader():
-    def __init__(self):
+    def __init__(self, training_data):
+        self.training_data = training_data
         self.verbose = True
 
-    def train(self, training_data):
-        episodes = 100 # 10 #
+    def train(self):
+        episodes = 30 # 1 # 10 # 
         epsilon = 1.0
         epsilon_min = 0.01
         # epsilon_decay = 0.90
@@ -27,7 +28,7 @@ class Trader():
         print('\tstart time:', starttime)
         print()
 
-        env = StockMarket(training_data.values) # data is only an information of prices in the environment
+        env = StockMarket(self.training_data.values) # data is only an information of prices in the environment
         env.create_predict_model()
         self.agent = DQN(env)
         self.train_history = []
@@ -60,6 +61,7 @@ class Trader():
             plt.xlabel('Episode')
             plt.ylabel('Profit')
             plt.show()
+            print('Final Accumulated Profit:\t', env.stock_trader.accumulated_profit)
 
             # Visualize training status
             pd.DataFrame(self.train_history, columns=['Accumulated Profit']).plot()
@@ -67,12 +69,13 @@ class Trader():
             plt.xlabel('Episode')
             plt.ylabel('Value')
             plt.show()
+            print('Average Accumulated Profit:\t', np.mean(self.train_history))
             
             if self.verbose:
-                print('Final Accumulated Profit:\t', env.stock_trader.accumulated_profit)
+                print()
                 print('='*50)
                 print()
-        
+                print()
             # Save model in every episode
             self.agent.save_model()
         
@@ -88,15 +91,17 @@ class Trader():
                 
     def predict_action(self, row):
         try: # Whether trained
-            try: # Whether the first prediction
-                _, curr_state, _ = self.env.step(self.prev_action, row)
-            except:
-                curr_state = self.env.reset(row)
+            self.env
         except:
-            self.env = StockMarket() # data is only an information of prices in the environment
+            self.env = StockMarket(self.training_data.values) # data is only an information of prices in the environment
             self.env.predict_model = load_model('predict_model.h5')
             self.agent = DQN(self.env)
             self.agent.model = load_model('model.h5')
+
+        try: # Whether the first prediction
+            _, curr_state, _ = self.env.step(self.prev_action, row)
+        except:
+            curr_state = self.env.reset(row)
 
         action = self.agent.act(curr_state)
         
@@ -126,8 +131,8 @@ if __name__ == '__main__':
     # The following part is an example.
     # You can modify it at will.
     training_data = load_data(args.training)
-    trader = Trader()
-    trader.train(training_data)
+    trader = Trader(training_data)
+    trader.train()
     
     testing_data = load_data(args.testing)
     with open(args.output, 'w') as output_file:

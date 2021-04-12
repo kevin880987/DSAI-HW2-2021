@@ -7,6 +7,8 @@ Created on Sun Apr 11 23:56:59 2021
 
 import numpy as np
 import matplotlib.pyplot as plt
+import inspect
+from datetime import datetime
 
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, GRU
@@ -43,6 +45,13 @@ class NN():
     def train(self, X, Y, epochs=24, model=None):
         # Both X and Y are 2d array
 
+        starttime = datetime.now()
+        print()
+        print()
+        print(inspect.currentframe().f_code.co_name)
+        print('\tstart time:', starttime)
+        print()
+
         X = X.reshape(X.shape[0], X.shape[1], 1)
         
         # Normalize Y
@@ -77,6 +86,14 @@ class NN():
             plt.show()
             
             print()
+
+        endtime = datetime.now()
+        print()
+        print(inspect.currentframe().f_code.co_name)
+        print('\tend time:', endtime)
+        print('\ttime consumption:', endtime-starttime)
+        print()
+        print()
         
     def predict(self, x):
         x = x.reshape(x.shape[0], x.shape[1], 1)

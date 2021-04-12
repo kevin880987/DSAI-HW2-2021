@@ -25,22 +25,23 @@ class StockMarket():
         
         self.data = data
         
-        self.state_size = 8
+        self.state_size = 9
         self.action_space = [1, 0, -1]
-
         self.trial_length:int = 20
         self.open_index:int = 0 # numerical index
+
+        # Predict
+        self.past_step = 5
+        self.future_step = 3
+        self.epochs = 100 # 2 # 50 # 600 # 
+        
         
     def create_predict_model(self):
-        past_step = 5
-        future_step = 2
-        epochs = 600 # 50 # 
-        
         X = np.empty((self.data.shape[0], 0))
-        for n in range(past_step):
+        for n in range(self.past_step):
             X = np.hstack((X, shift(self.data, n)))
         Y = np.empty((self.data.shape[0], 0))
-        for n in range(1, future_step+1):
+        for n in range(1, self.future_step+1):
             Y = np.hstack((Y, shift(self.data[:, [self.open_index]], -n)))
         mask = ~np.isnan(X).any(axis=1) & ~np.isnan(Y).any(axis=1)
         X = X[mask]
@@ -50,9 +51,8 @@ class StockMarket():
                            output_size=Y.shape[1], 
                            layers=6, units=max(2, int(round(X.shape[1]/2))))
 
-        predict_model.train(X, Y, epochs=epochs) # , model=load_model('predict_model.h5')) # 
+        predict_model.train(X, Y, epochs=self.epochs) # , model=load_model('predict_model.h5')) # 
 
-        self.past_step = past_step
         self.predict_model = predict_model
         predict_model.save_model('predict_model.h5')
 
@@ -84,7 +84,7 @@ class StockMarket():
         
         # Prediction
         x = self.data[self.curr_index+1: self.curr_index-self.past_step+1: -1]
-        x = x.reshape((1, x.size))
+        x = x.reshape((1, x.size, 1))
         prediction = self.predict_model.predict(x)[0]
         prediction /= open_price
 
@@ -117,7 +117,7 @@ class StockMarket():
         self.step_ctr += 1
         
         self.curr_index += 1
-        if next_prices is None: # continue 
+        if next_prices is None: # continue
             pass
         else:
             self.data = np.vstack((self.data, next_prices))
